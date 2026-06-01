@@ -27,7 +27,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
-from graph import NODES, expand_tour, floyd_warshall
+from graph import NODES, adjacency, expand_tour, floyd_warshall
 
 
 @dataclass
@@ -157,26 +157,68 @@ class AntColonyTSP:
         return best_tour, best_len
 
 
-def main() -> None:
-    solver = AntColonyTSP(start="H", end="D", params=ACOParams())
-    result = solver.run()
+def shortest_path_via_waypoint(start: str, end: str, waypoint: str) -> Tuple[List[str], float]:
+    """
+    Cari jalur SEDERHANA terpendek (tanpa mengunjungi titik dua kali)
+    dari start ke end yang wajib melewati waypoint, memakai sisi ASLI graph.
 
-    print("=" * 60)
+    Dipakai untuk interpretasi kedua: "cari rute H->D yang lewat # saja"
+    (titik A & B tidak wajib). Pencarian eksak via DFS, aman karena graph kecil.
+    """
+    adj = adjacency()
+    best_len = float("inf")
+    best_path: List[str] = []
+
+    def dfs(node: str, visited: set, path: List[str], cost: float) -> None:
+        nonlocal best_len, best_path
+        if cost >= best_len:
+            return
+        if node == end:
+            if waypoint in path:
+                best_len = cost
+                best_path = list(path)
+            return
+        for nb, w in adj[node].items():
+            if nb not in visited:
+                visited.add(nb)
+                path.append(nb)
+                dfs(nb, visited, path, cost + w)
+                path.pop()
+                visited.remove(nb)
+
+    dfs(start, {start}, [start], 0.0)
+    return best_path, best_len
+
+
+def main() -> None:
+    print("=" * 64)
     print("  ANT COLONY OPTIMIZATION - TSP (Gambar 1)")
     print("  Rute dari H ke D, wajib melewati '#'")
-    print("=" * 60)
-    print(f"\nRute ACO (urutan titik): {' -> '.join(result.tour)}")
-    print(f"Total jarak             : {result.length:.0f}")
-    print(f"Jalur fisik (edge graph): {' -> '.join(result.walk)}")
-    print(f"'#' dilewati             : {'YA' if '#' in result.tour else 'TIDAK'}")
+    print("=" * 64)
 
-    # Verifikasi terhadap solusi optimal eksak.
+    # --- Tafsir 1: TSP PENUH (kunjungi SEMUA titik) ---
+    solver = AntColonyTSP(start="H", end="D", params=ACOParams())
+    result = solver.run()
     bf_tour, bf_len = solver.brute_force_optimum()
-    print("\n--- Verifikasi (brute force) ---")
-    print(f"Rute optimal            : {' -> '.join(bf_tour)}")
-    print(f"Total jarak optimal     : {bf_len:.0f}")
     status = "OPTIMAL" if abs(result.length - bf_len) < 1e-9 else "BELUM OPTIMAL"
-    print(f"Status hasil ACO        : {status}")
+
+    print("\n[1] TSP PENUH - kunjungi SEMUA titik (# otomatis dilewati)")
+    print(f"    Rute (urutan titik)  : {' -> '.join(result.tour)}")
+    print(f"    Jalur fisik (edge)   : {' -> '.join(result.walk)}")
+    print(f"    Total jarak (ACO)    : {result.length:.0f}")
+    print(f"    Verifikasi bruteforce: {bf_len:.0f}  -> {status}")
+
+    # --- Tafsir 2: shortest path H->D lewat # (A & B tidak wajib) ---
+    sp_path, sp_len = shortest_path_via_waypoint("H", "D", "#")
+    print("\n[2] SHORTEST PATH - dari H ke D wajib lewat # (A & B TIDAK wajib)")
+    print(f"    Rute                 : {' -> '.join(sp_path)}")
+    print(f"    Total jarak          : {sp_len:.0f}")
+
+    print("\n" + "-" * 64)
+    print("Catatan: struktur graph Gambar 1 membuat Hamiltonian path murni")
+    print("H->D mustahil (A, B, F hanya terhubung lewat C). Karena itu ada")
+    print("dua tafsir: 36 (TSP, kunjungi semua) atau 23 (jalur terpendek")
+    print("H->D lewat # saja). Penjelasan ada di readme.txt bagian Analisis.")
 
 
 if __name__ == "__main__":

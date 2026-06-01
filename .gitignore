@@ -7,3 +7,6 @@ venv/
 
 # File kerja lokal (audio unduhan video + transkrip), tidak untuk repo publik
 _video/
+
+# Naskah/poin bicara video - catatan pribadi, tidak untuk repo publik
+naskah_video.txt

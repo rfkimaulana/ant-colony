@@ -25,9 +25,34 @@ Cara kerja ACO (singkatnya):
 
 
 Hasil:
-Rute        : H -> E -> G -> F -> C -> # -> A -> B -> D
-Total jarak : 36
-Hasil ini udah dicek pakai brute force dan terbukti optimal.
+Program menampilkan DUA tafsir hasil (lihat bagian Analisis):
+[1] TSP penuh (kunjungi semua titik):
+    H -> E -> G -> F -> C -> # -> A -> B -> D   = 36  (dicek brute force, optimal)
+[2] Shortest path H->D lewat # (A & B tidak wajib):
+    H -> G -> # -> C -> F -> E -> D             = 23
+
+
+Analisis (kenapa ada 2 jawaban):
+Graph Gambar 1 ini ternyata bukan TSP biasa. Titik A, B, dan F
+masing-masing CUMA nyambung lewat C. Akibatnya, rute yang mengunjungi
+semua titik tepat satu kali (Hamiltonian path) dari H ke D itu MUSTAHIL
+secara matematis. Jadi soalnya bisa dibaca dua cara:
+
+- Kalau dianggap "TSP" (kunjungi semua titik), karena nggak bisa lewat
+  tiap titik sekali, dipakai jarak terpendek antar titik (Floyd-Warshall).
+  Konsekuensinya beberapa titik (E, C, #) terpaksa dilewati dua kali.
+  Hasil = 36.
+
+- Kalau dibaca literal "cari rute dari H ke D yang harus melewati #",
+  maka A dan B tidak wajib dikunjungi. Hasilnya jalur terpendek biasa
+  H->D yang lewat # = 23. Menariknya titik # ditandai khusus (bukan
+  huruf) seakan jadi satu-satunya titik yang wajib.
+
+Catatan soal ACO: ACO selalu konvergen ke rute terpendek, tapi
+"terpendek dari kumpulan rute mana" tergantung aturan yang dikasih ke
+semut. Kalau semut diwajibkan kunjungi semua titik -> ketemu 36. Kalau
+semut bebas asal lewat # -> ketemu 23. Jadi 36 vs 23 bukan soal ACO
+benar/salah, tapi soal masalah mana yang diselesaikan.
 
 
 Cara jalanin:
