@@ -8,11 +8,10 @@ menggunakan algoritma Ant Colony Optimization (ACO).
 
 
 Penjelasan singkat:
-Graph di gambar 1 sifatnya sparse (nggak semua titik nyambung
-langsung). Jadi sebelum ACO dijalanin, jarak antar titik dihitung
-dulu pakai shortest path (Floyd-Warshall) biar jadi matriks jarak
-lengkap. Setelah itu ACO nyari urutan kunjungan titik dari H ke D
-dengan total jarak paling kecil. Karena ini TSP, semua titik
+Di gambar 1, nggak semua titik nyambung langsung satu sama lain.
+Jadi sebelum ACO dijalanin, dihitung dulu jarak terdekat antar tiap
+titik biar lengkap. Setelah itu ACO nyari urutan kunjungan titik dari
+H ke D dengan total jarak paling kecil. Karena ini TSP, semua titik
 dikunjungi sehingga titik # otomatis ikut dilewati.
 
 
@@ -35,13 +34,12 @@ Program menampilkan DUA tafsir hasil (lihat bagian Analisis):
 Analisis (kenapa ada 2 jawaban):
 Graph Gambar 1 ini ternyata bukan TSP biasa. Titik A, B, dan F
 masing-masing CUMA nyambung lewat C. Akibatnya, rute yang mengunjungi
-semua titik tepat satu kali (Hamiltonian path) dari H ke D itu MUSTAHIL
-secara matematis. Jadi soalnya bisa dibaca dua cara:
+semua titik tepat satu kali dari H ke D itu nggak mungkin dibuat.
+Jadi soalnya bisa dibaca dua cara:
 
 - Kalau dianggap "TSP" (kunjungi semua titik), karena nggak bisa lewat
-  tiap titik sekali, dipakai jarak terpendek antar titik (Floyd-Warshall).
-  Konsekuensinya beberapa titik (E, C, #) terpaksa dilewati dua kali.
-  Hasil = 36.
+  tiap titik sekali, dipakai jarak terdekat antar titik. Konsekuensinya
+  beberapa titik (E, C, #) terpaksa dilewati dua kali. Hasil = 36.
 
 - Kalau dibaca literal "cari rute dari H ke D yang harus melewati #",
   maka A dan B tidak wajib dikunjungi. Hasilnya jalur terpendek biasa
@@ -55,15 +53,9 @@ semut bebas asal lewat # -> ketemu 23. Jadi 36 vs 23 bukan soal ACO
 benar/salah, tapi soal masalah mana yang diselesaikan.
 
 
-Cara jalanin:
-1. Pastikan Python sudah terinstall.
-2. Install matplotlib buat visualisasi:  pip install matplotlib
-3. Jalanin solver:                       python aco.py
-4. (opsional) bikin gambar rute:         python visualize.py
-
-
-File:
-- graph.py      : data graph gambar 1 + Floyd-Warshall
-- aco.py        : algoritma ACO + verifikasi brute force (file utama)
-- visualize.py  : gambar graph & rute terbaik (hasil_rute.png)
-- gambar1.jpg   : soal (gambar 1)
+Cara jalanin (Google Colab):
+1. Buka Google Colab (colab.research.google.com), bikin notebook baru.
+2. Upload file graph.py, aco.py, dan visualize.py.
+   (klik ikon folder di panel kiri -> tombol Upload)
+3. Di sebuah cell, ketik lalu jalankan:   !python aco.py
+4. (opsional) buat gambar rute:           !python visualize.py
