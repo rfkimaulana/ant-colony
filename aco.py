@@ -1,23 +1,14 @@
 """
 aco.py
-------
-Penyelesaian Traveling Salesman Problem (TSP) dengan Ant Colony
-Optimization (ACO) untuk graph "Gambar 1".
+Nyelesaiin Traveling Salesman Problem (TSP) di graph Gambar 1 pakai
+Ant Colony Optimization (ACO).
 
-Kasus: cari rute terpendek yang BERANGKAT dari titik H, BERAKHIR di
-titik D, dan WAJIB melewati titik '#'. Karena ini TSP, rute harus
-mengunjungi SELURUH titik tepat satu kali (sehingga '#' otomatis
-ikut dilalui).
+Soalnya: cari rute dari titik H ke titik D yang harus lewat titik '#'.
+Karena ini TSP, semutnya disuruh ngunjungin semua titik, jadi '#'
+pasti kelewat.
 
-Karena graph bersifat sparse, jarak antar-titik memakai jarak
-terpendek (Floyd-Warshall). Rute hasil ACO kemudian dijabarkan
-kembali menjadi jalur fisik edge-per-edge pada graph asli.
-
-Referensi algoritma:
-- M. Dorigo, "Ant Colony Optimization", aturan transisi probabilistik
-  dan pembaruan feromon dengan penguapan (evaporation).
-- Paper tugas: "Solving Traveling Salesman Problem Using Ant Colony
-  Optimization Algorithm".
+Karena di Gambar 1 nggak semua titik nyambung langsung, jaraknya
+diambil dari jarak terdekat antar titik (dihitung di graph.py).
 """
 
 from __future__ import annotations
@@ -25,57 +16,54 @@ from __future__ import annotations
 import itertools
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import List
 
-from graph import NODES, adjacency, expand_tour, floyd_warshall
+from graph import NODES, adjacency, expand_tour, hitung_jarak_terdekat
 
 
 @dataclass
 class ACOParams:
-    n_ants: int = 20          # jumlah semut per iterasi
-    n_iterations: int = 200   # jumlah iterasi
-    alpha: float = 1.0        # bobot pengaruh feromon
-    beta: float = 3.0         # bobot pengaruh heuristik (1/jarak)
-    rho: float = 0.5          # laju penguapan feromon
-    q: float = 100.0          # konstanta deposit feromon
+    n_ants: int = 20          # jumlah semut tiap iterasi
+    n_iterations: int = 200   # berapa kali diulang
+    alpha: float = 1.0        # seberapa ngaruh feromon
+    beta: float = 3.0         # seberapa ngaruh jarak (1/jarak)
+    rho: float = 0.5          # seberapa cepat feromon nguap
+    q: float = 100.0          # konstanta buat nambah feromon
     tau0: float = 1.0         # feromon awal
-    seed: int = 42            # seed RNG agar hasil reproducible
+    seed: int = 42            # biar hasilnya tetap sama tiap dijalanin
 
 
 @dataclass
 class ACOResult:
-    tour: List[str]                 # urutan kunjungan titik (H ... D)
-    length: float                   # total jarak rute
-    walk: List[str]                 # jalur fisik edge-per-edge
+    tour: List[str]                 # urutan titik yang dikunjungi (H ... D)
+    length: float                   # total jaraknya
+    walk: List[str]                 # jalur aslinya di graph
     history: List[float] = field(default_factory=list)  # jarak terbaik tiap iterasi
 
 
 class AntColonyTSP:
-    """ACO untuk TSP open-path dengan titik awal & akhir tetap."""
+    """ACO buat cari rute H ke D yang lewat semua titik."""
 
-    def __init__(self, start: str = "H", end: str = "D", params: ACOParams | None = None):
+    def __init__(self, start="H", end="D", params=None):
         self.start = start
         self.end = end
         self.params = params or ACOParams()
-        self.dist, self.nxt = floyd_warshall()
+        self.dist, self.nxt = hitung_jarak_terdekat()
 
-        # Titik perantara yang harus dikunjungi di antara start dan end.
+        # titik-titik yang harus dikunjungi di antara H dan D
         self.intermediates = [n for n in NODES if n not in (start, end)]
 
-        # Inisialisasi feromon pada graph lengkap (matriks jarak).
-        self.tau: Dict[str, Dict[str, float]] = {
-            u: {v: self.params.tau0 for v in NODES} for u in NODES
-        }
+        # feromon awal, semua sisi dikasih nilai sama
+        self.tau = {u: {v: self.params.tau0 for v in NODES} for u in NODES}
         self.rng = random.Random(self.params.seed)
 
-    # ----------------------------- inti ACO ----------------------------- #
-    def _eta(self, u: str, v: str) -> float:
-        """Nilai heuristik = 1 / jarak (semakin dekat semakin menarik)."""
+    def _eta(self, u, v):
+        """Makin deket titiknya makin gede nilainya (1 / jarak)."""
         d = self.dist[u][v]
         return 1.0 / d if d > 0 else 0.0
 
-    def _pick_next(self, current: str, candidates: List[str]) -> str:
-        """Pilih titik berikutnya secara probabilistik (aturan transisi ACO)."""
+    def _pick_next(self, current, candidates):
+        """Pilih titik berikutnya secara acak tapi dibobotin feromon & jarak."""
         weights = []
         for v in candidates:
             tau = self.tau[current][v] ** self.params.alpha
@@ -92,8 +80,8 @@ class AntColonyTSP:
                 return v
         return candidates[-1]
 
-    def _build_tour(self) -> Tuple[List[str], float]:
-        """Satu semut membangun rute: start -> semua perantara -> end."""
+    def _build_tour(self):
+        """Satu semut bikin rute: dari H, keliling semua titik, terus ke D."""
         tour = [self.start]
         unvisited = list(self.intermediates)
         current = self.start
@@ -105,27 +93,27 @@ class AntColonyTSP:
         tour.append(self.end)
         return tour, self._tour_length(tour)
 
-    def _tour_length(self, tour: List[str]) -> float:
+    def _tour_length(self, tour):
         return sum(self.dist[a][b] for a, b in zip(tour, tour[1:]))
 
-    def _update_pheromone(self, ant_tours: List[Tuple[List[str], float]]) -> None:
-        # Penguapan.
+    def _update_pheromone(self, ant_tours):
+        # feromon nguap dulu
         for u in NODES:
             for v in NODES:
                 self.tau[u][v] *= (1.0 - self.params.rho)
-        # Deposit oleh tiap semut, berbanding terbalik dengan panjang rute.
+        # terus ditambah, rute yang lebih pendek dapet tambahan lebih banyak
         for tour, length in ant_tours:
             if length <= 0:
                 continue
-            deposit = self.params.q / length
+            tambah = self.params.q / length
             for a, b in zip(tour, tour[1:]):
-                self.tau[a][b] += deposit
-                self.tau[b][a] += deposit
+                self.tau[a][b] += tambah
+                self.tau[b][a] += tambah
 
-    def run(self) -> ACOResult:
-        best_tour: List[str] = []
+    def run(self):
+        best_tour = []
         best_len = float("inf")
-        history: List[float] = []
+        history = []
 
         for _ in range(self.params.n_iterations):
             ant_tours = [self._build_tour() for _ in range(self.params.n_ants)]
@@ -133,21 +121,20 @@ class AntColonyTSP:
                 if length < best_len:
                     best_len, best_tour = length, tour
             self._update_pheromone(ant_tours)
-            # Reinforcement elitist: rute terbaik global diperkuat.
+            # rute terbaik sejauh ini dikasih feromon ekstra biar makin kuat
             if best_tour:
-                deposit = self.params.q / best_len
+                tambah = self.params.q / best_len
                 for a, b in zip(best_tour, best_tour[1:]):
-                    self.tau[a][b] += deposit
-                    self.tau[b][a] += deposit
+                    self.tau[a][b] += tambah
+                    self.tau[b][a] += tambah
             history.append(best_len)
 
         walk = expand_tour(best_tour, self.nxt)
         return ACOResult(tour=best_tour, length=best_len, walk=walk, history=history)
 
-    # --------------------------- verifikasi ---------------------------- #
-    def brute_force_optimum(self) -> Tuple[List[str], float]:
-        """Cari solusi optimal eksak via brute force (untuk verifikasi)."""
-        best_tour: List[str] = []
+    def brute_force_optimum(self):
+        """Cek semua kemungkinan urutan, buat mastiin hasil ACO udah paling kecil."""
+        best_tour = []
         best_len = float("inf")
         for perm in itertools.permutations(self.intermediates):
             tour = [self.start, *perm, self.end]
@@ -157,19 +144,19 @@ class AntColonyTSP:
         return best_tour, best_len
 
 
-def shortest_path_via_waypoint(start: str, end: str, waypoint: str) -> Tuple[List[str], float]:
+def shortest_path_via_waypoint(start, end, waypoint):
     """
-    Cari jalur SEDERHANA terpendek (tanpa mengunjungi titik dua kali)
-    dari start ke end yang wajib melewati waypoint, memakai sisi ASLI graph.
+    Cari jalur terpendek dari start ke end yang harus lewat waypoint,
+    tanpa ngunjungin titik yang sama dua kali, pakai garis asli di graph.
 
-    Dipakai untuk interpretasi kedua: "cari rute H->D yang lewat # saja"
-    (titik A & B tidak wajib). Pencarian eksak via DFS, aman karena graph kecil.
+    Dipakai buat tafsir kedua: cari rute H->D yang cukup lewat # aja
+    (titik A & B nggak wajib). Dicari dengan nyoba semua jalur (graph kecil).
     """
     adj = adjacency()
     best_len = float("inf")
-    best_path: List[str] = []
+    best_path = []
 
-    def dfs(node: str, visited: set, path: List[str], cost: float) -> None:
+    def dfs(node, visited, path, cost):
         nonlocal best_len, best_path
         if cost >= best_len:
             return
@@ -190,13 +177,13 @@ def shortest_path_via_waypoint(start: str, end: str, waypoint: str) -> Tuple[Lis
     return best_path, best_len
 
 
-def main() -> None:
+def main():
     print("=" * 64)
     print("  ANT COLONY OPTIMIZATION - TSP (Gambar 1)")
     print("  Rute dari H ke D, wajib melewati '#'")
     print("=" * 64)
 
-    # --- Tafsir 1: TSP PENUH (kunjungi SEMUA titik) ---
+    # --- Tafsir 1: kunjungi SEMUA titik ---
     solver = AntColonyTSP(start="H", end="D", params=ACOParams())
     result = solver.run()
     bf_tour, bf_len = solver.brute_force_optimum()
@@ -204,21 +191,21 @@ def main() -> None:
 
     print("\n[1] TSP PENUH - kunjungi SEMUA titik (# otomatis dilewati)")
     print(f"    Rute (urutan titik)  : {' -> '.join(result.tour)}")
-    print(f"    Jalur fisik (edge)   : {' -> '.join(result.walk)}")
+    print(f"    Jalur asli di graph  : {' -> '.join(result.walk)}")
     print(f"    Total jarak (ACO)    : {result.length:.0f}")
-    print(f"    Verifikasi bruteforce: {bf_len:.0f}  -> {status}")
+    print(f"    Dicek semua urutan   : {bf_len:.0f}  -> {status}")
 
-    # --- Tafsir 2: shortest path H->D lewat # (A & B tidak wajib) ---
+    # --- Tafsir 2: cukup lewat # aja (A & B nggak wajib) ---
     sp_path, sp_len = shortest_path_via_waypoint("H", "D", "#")
     print("\n[2] SHORTEST PATH - dari H ke D wajib lewat # (A & B TIDAK wajib)")
     print(f"    Rute                 : {' -> '.join(sp_path)}")
     print(f"    Total jarak          : {sp_len:.0f}")
 
     print("\n" + "-" * 64)
-    print("Catatan: struktur graph Gambar 1 membuat Hamiltonian path murni")
-    print("H->D mustahil (A, B, F hanya terhubung lewat C). Karena itu ada")
-    print("dua tafsir: 36 (TSP, kunjungi semua) atau 23 (jalur terpendek")
-    print("H->D lewat # saja). Penjelasan ada di readme.txt bagian Analisis.")
+    print("Catatan: di graph ini nggak ada rute yang bisa lewat tiap titik")
+    print("tepat sekali dari H ke D (A, B, F cuma nyambung lewat C). Makanya")
+    print("ada dua tafsir: 36 (kunjungi semua) atau 23 (cukup lewat # aja).")
+    print("Penjelasan lengkap ada di readme.txt bagian Analisis.")
 
 
 if __name__ == "__main__":

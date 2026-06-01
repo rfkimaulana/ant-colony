@@ -1,13 +1,11 @@
 """
 graph.py
---------
-Definisi graph "Gambar 1" untuk tugas Traveling Salesman Problem (TSP)
-dengan Ant Colony Optimization (ACO).
+Data graph Gambar 1 (titik, garis penghubung, sama bobotnya) buat
+tugas TSP pakai Ant Colony Optimization.
 
-Graph aslinya bersifat sparse (tidak semua titik terhubung langsung),
-sehingga jarak antar-titik dihitung dengan algoritma shortest-path
-(Floyd-Warshall). Hasilnya berupa matriks jarak lengkap + tabel
-"next-hop" untuk merekonstruksi jalur fisik antar dua titik.
+Di Gambar 1 nggak semua titik nyambung langsung, jadi di sini ada
+fungsi buat ngitung jarak terdekat dari tiap titik ke titik lain
+dulu, biar nanti ACO tau jaraknya.
 """
 
 from __future__ import annotations
@@ -15,10 +13,10 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Tuple
 
-# Daftar simpul (node) pada Gambar 1.
+# Semua titik yang ada di Gambar 1.
 NODES: List[str] = ["#", "A", "B", "C", "D", "E", "F", "G", "H"]
 
-# Daftar sisi (edge) beserta bobotnya, dibaca langsung dari Gambar 1.
+# Garis penghubung antar titik + bobotnya, dicatat dari Gambar 1.
 EDGES: List[Tuple[str, str, int]] = [
     ("#", "A", 3),
     ("#", "C", 2),
@@ -35,7 +33,8 @@ EDGES: List[Tuple[str, str, int]] = [
     ("G", "H", 3),
 ]
 
-# Koordinat (x, y) untuk visualisasi, mendekati tata letak pada Gambar 1.
+# Posisi (x, y) tiap titik, cuma dipakai pas bikin gambar biar
+# tata letaknya mirip Gambar 1.
 COORDS: Dict[str, Tuple[float, float]] = {
     "#": (2.1, 3.0),
     "G": (6.2, 3.0),
@@ -49,40 +48,41 @@ COORDS: Dict[str, Tuple[float, float]] = {
 }
 
 
-def adjacency() -> Dict[str, Dict[str, int]]:
-    """Bangun adjacency list (graph tak-berarah) dari EDGES."""
-    adj: Dict[str, Dict[str, int]] = {n: {} for n in NODES}
+def adjacency():
+    """Bikin daftar tetangga tiap titik dari EDGES (dicatat dua arah)."""
+    adj = {n: {} for n in NODES}
     for u, v, w in EDGES:
         adj[u][v] = w
         adj[v][u] = w
     return adj
 
 
-def floyd_warshall() -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, str | None]]]:
+def hitung_jarak_terdekat():
     """
-    Hitung jarak terpendek antar semua pasang titik (Floyd-Warshall).
+    Hitung jarak paling pendek dari tiap titik ke semua titik lain.
+    Idenya: buat tiap pasang titik, dicoba lewat titik perantara,
+    kalau ada yang lebih pendek dipakai.
 
-    Returns:
-        dist: dist[u][v] = panjang jalur terpendek u->v.
-        nxt:  nxt[u][v]  = titik berikutnya pada jalur terpendek u->v
-              (untuk rekonstruksi jalur fisik).
+    Ngembaliin 2 hal:
+      dist[u][v] = jarak terdekat dari u ke v
+      nxt[u][v]  = titik berikutnya kalau mau jalan dari u ke v
+                   (dipakai buat nyusun jalur aslinya nanti)
     """
     adj = adjacency()
-    dist: Dict[str, Dict[str, float]] = {
-        u: {v: math.inf for v in NODES} for u in NODES
-    }
-    nxt: Dict[str, Dict[str, str | None]] = {
-        u: {v: None for v in NODES} for u in NODES
-    }
+    dist = {u: {v: math.inf for v in NODES} for u in NODES}
+    nxt = {u: {v: None for v in NODES} for u in NODES}
 
+    # jarak titik ke dirinya sendiri = 0
     for u in NODES:
         dist[u][u] = 0.0
         nxt[u][u] = u
+    # isi jarak yang nyambung langsung
     for u in NODES:
         for v, w in adj[u].items():
             dist[u][v] = float(w)
             nxt[u][v] = v
 
+    # coba tiap titik k sebagai perantara, update kalau lebih pendek
     for k in NODES:
         for i in NODES:
             for j in NODES:
@@ -92,36 +92,37 @@ def floyd_warshall() -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, s
     return dist, nxt
 
 
-def reconstruct_path(u: str, v: str, nxt: Dict[str, Dict[str, str | None]]) -> List[str]:
-    """Rekonstruksi jalur fisik terpendek dari u ke v menggunakan tabel next-hop."""
+def reconstruct_path(u, v, nxt):
+    """Susun jalur asli dari u ke v pakai tabel nxt."""
     if nxt[u][v] is None:
         return []
     path = [u]
     while u != v:
-        u = nxt[u][v]  # type: ignore[assignment]
+        u = nxt[u][v]
         path.append(u)
     return path
 
 
-def expand_tour(tour: List[str], nxt: Dict[str, Dict[str, str | None]]) -> List[str]:
+def expand_tour(tour, nxt):
     """
-    Ubah urutan kunjungan titik (tour) menjadi jalur fisik lengkap
-    edge-per-edge di graph asli.
+    Ubah urutan titik (tour) jadi jalur asli yang beneran lewat garis
+    di graph. Soalnya kadang dua titik berurutan di tour nggak nyambung
+    langsung, jadi harus lewat titik lain dulu.
     """
     if not tour:
         return []
-    walk: List[str] = [tour[0]]
+    walk = [tour[0]]
     for a, b in zip(tour, tour[1:]):
         seg = reconstruct_path(a, b, nxt)
-        walk.extend(seg[1:])  # hindari duplikasi titik sambungan
+        walk.extend(seg[1:])  # titik sambungannya jangan kehitung dobel
     return walk
 
 
 if __name__ == "__main__":
-    dist, nxt = floyd_warshall()
-    print("Matriks jarak terpendek antar titik:")
-    header = "    " + "".join(f"{n:>5}" for n in NODES)
-    print(header)
+    # buat ngecek jarak antar titik
+    dist, nxt = hitung_jarak_terdekat()
+    print("Jarak terdekat antar titik:")
+    print("    " + "".join(f"{n:>5}" for n in NODES))
     for u in NODES:
         row = "".join(f"{dist[u][v]:>5.0f}" for v in NODES)
         print(f"{u:>3} {row}")
