@@ -4,3 +4,6 @@ __pycache__/
 venv/
 .idea/
 .vscode/
+
+# File kerja lokal (audio unduhan video + transkrip), tidak untuk repo publik
+_video/
